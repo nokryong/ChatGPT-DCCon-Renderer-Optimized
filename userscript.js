@@ -1,68 +1,340 @@
 // ==UserScript==
-// @name         ChatGPT DCCon Renderer Optimized
-// @namespace    local.aicon.chatgpt.optimized
-// @version      3.1.0
-// @description  Render AIcon tags as DCCon images on ChatGPT via GM_xmlhttpRequest and Blob URLs.
+// @name         ChatGPT AIcon Semantic
+// @namespace    local.aicon.chatgpt.semantic
+// @version      6.0.1
+// @description  Render the 32-icon tidy-bob AIcon set from Firebase Storage; exact and semantic tags.
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
 // @grant        GM_xmlhttpRequest
-// @connect      dcimg5.dcinside.com
+// @connect      firebasestorage.googleapis.com
 // @run-at       document-end
 // @noframes
 // ==/UserScript==
 
 (function () {
   'use strict';
-  if (!new Set(['chatgpt.com', 'chat.openai.com']).has(location.hostname)) return;
 
-  const CONFIG = Object.freeze({ iconSize: 128, showBadge: false, badgeText: 'AIcon', statusStorageKey: '__AICON_STATUS__', statusFlushDelayMs: 750 });
-  // [canonical name, numeric legacy prefix, direct DCCon URL]
+  const AGENT_ID = "gpt";
+  const ALLOWED_HOSTS = new Set(["chatgpt.com","chat.openai.com"]);
+  if (!ALLOWED_HOSTS.has(location.hostname)) return;
+  if (AGENT_ID === 'grok' && location.hostname === 'x.com' && !location.pathname.startsWith('/i/grok')) return;
+
+  const CONFIG = Object.freeze({
+    iconSize: 128,
+    showBadge: false,
+    badgeText: 'AIcon',
+    statusStorageKey: '__AICON_STATUS_' + AGENT_ID.toUpperCase() + '__',
+    statusFlushDelayMs: 750,
+  });
+  const FIREBASE_BUCKET = "mytaskmanager-cf059.appspot.com";
+  const FIREBASE_FOLDER = 'aicons4/' + AGENT_ID;
   const ICON_ROWS = [
-    ['행복','01','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad83400021'],
-    ['나야','02','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae83400021'],
-    ['누나야','03','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306af83400021'],
-    ['어머머','04','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306a883400021'],
-    ['개추','05','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306a983400021'],
-    ['무시','06','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306aa83400021'],
-    ['사료가','07','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ab83400021'],
-    ['삐삐','08','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306a483400021'],
-    ['기다리','09','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306a583400021'],
-    ['가만히','10','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad9d1e1e2848'],
-    ['휴지','11','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad9c1e1e2814'],
-    ['몸매','12','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad9f1e1e289f'],
-    ['기대','13','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad9e1e1e2845'],
-    ['하두','14','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad991e1e2857'],
-    ['헉헉헉','15','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad981e1e2825'],
-    ['열심히','16','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad9b1e1e2800'],
-    ['완장','17','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad9a1e1e2820'],
-    ['죄송할','18','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad951e1e28e8'],
-    ['잘자','19','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ad941e1e28d4'],
-    ['으아앙','20','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae9d1e1e28f5'],
-    ['잘자2','21','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae9c1e1e28cd'],
-    ['레알3','22','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae9f1e1e28a6'],
-    ['자연사','23','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae9e1e1e28cc'],
-    ['레알','24','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae991e1e2827'],
-    ['레알2','25','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae981e1e28af'],
-    ['눈떠','26','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae9b1e1e28f5'],
-    ['다시','27','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae9a1e1e2812'],
-    ['당함','28','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae951e1e2817'],
-    ['주문','29','https://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b651ee276e03551ca8f889297a784025c6e259437413c1f483673a321d1186ef8e71d97f1d1f0349787d9bafe7a07306ae941e1e281c']
-  ];
-  const ICONS = Object.create(null), ALIASES = Object.create(null);
-  for (const [name, number, src] of ICON_ROWS) {
-    const alias = number + name;
+  [
+    "대기중",
+    "01-idle.png"
+  ],
+  [
+    "접수",
+    "02-acknowledged.png"
+  ],
+  [
+    "생각중",
+    "03-thinking.png"
+  ],
+  [
+    "작업중",
+    "04-working.png"
+  ],
+  [
+    "주인님?",
+    "05-question.png"
+  ],
+  [
+    "해냈다",
+    "06-done.png"
+  ],
+  [
+    "왜안됨",
+    "07-blocked.png"
+  ],
+  [
+    "계획대로",
+    "08-smug.png"
+  ],
+  [
+    "안녕",
+    "09-greeting.png"
+  ],
+  [
+    "어디보자",
+    "10-inspecting.png"
+  ],
+  [
+    "잘보세요",
+    "11-explaining.png"
+  ],
+  [
+    "찾았다",
+    "12-discovery.png"
+  ],
+  [
+    "잠깐",
+    "13-caution.png"
+  ],
+  [
+    "미안해요",
+    "14-sorry.png"
+  ],
+  [
+    "좋았어",
+    "15-happy.png"
+  ],
+  [
+    "진짜?",
+    "16-skeptical.png"
+  ],
+  [
+    "어흐~",
+    "17-eohu.png"
+  ],
+  [
+    "우헤헤",
+    "18-uhehe.png"
+  ],
+  [
+    "븅신",
+    "19-insult.png"
+  ],
+  [
+    "펀치",
+    "20-punch.png"
+  ],
+  [
+    "조금애매함",
+    "21-uncertain.png"
+  ],
+  [
+    "아닌데?",
+    "22-disagree.png"
+  ],
+  [
+    "그건안돼",
+    "23-not-allowed.png"
+  ],
+  [
+    "파일줘봐",
+    "24-file-request.png"
+  ],
+  [
+    "검토완료",
+    "25-reviewed.png"
+  ],
+  [
+    "출처있음",
+    "26-source.png"
+  ],
+  [
+    "수정완료",
+    "27-fixed.png"
+  ],
+  [
+    "ㄹㅇㅋㅋ",
+    "28-lol.png"
+  ],
+  [
+    "정말이지",
+    "29-good-grief.png"
+  ],
+  [
+    "윙크",
+    "30-wink.png"
+  ],
+  [
+    "하트",
+    "31-heart.png"
+  ],
+  [
+    "잘자",
+    "32-sleep.png"
+  ]
+];
+  const LEGACY_ALIASES = {};
+  const CATEGORY_ROWS = {
+  "질문": [
+    "주인님?"
+  ],
+  "확인": [
+    "검토완료"
+  ],
+  "검색": [
+    "어디보자"
+  ],
+  "완료": [
+    "해냈다"
+  ],
+  "긍정": [
+    "좋았어"
+  ],
+  "부정": [
+    "아닌데?",
+    "그건안돼"
+  ],
+  "웃기": [
+    "우헤헤",
+    "ㄹㅇㅋㅋ"
+  ],
+  "사랑": [
+    "하트",
+    "윙크",
+    "어흐~"
+  ],
+  "화남": [
+    "펀치"
+  ],
+  "당황": [
+    "왜안됨"
+  ],
+  "잠": [
+    "잘자"
+  ],
+  "미안": [
+    "미안해요"
+  ],
+  "요청": [
+    "파일줘봐"
+  ],
+  "작업중": [
+    "작업중"
+  ],
+  "자랑": [
+    "계획대로"
+  ],
+  "오류": [
+    "왜안됨"
+  ],
+  "응원": [
+    "하트"
+  ],
+  "인사": [
+    "안녕"
+  ],
+  "대기": [
+    "대기중"
+  ],
+  "생각": [
+    "생각중"
+  ],
+  "설명": [
+    "잘보세요"
+  ],
+  "발견": [
+    "찾았다"
+  ],
+  "주의": [
+    "잠깐"
+  ],
+  "의심": [
+    "진짜?"
+  ],
+  "애매": [
+    "조금애매함"
+  ],
+  "근거": [
+    "출처있음"
+  ]
+};
+  const CATEGORY_ALIASES = {
+  "의문": "질문",
+  "궁금": "질문",
+  "묻기": "질문",
+  "검토": "확인",
+  "확인하기": "확인",
+  "찾기": "검색",
+  "조사": "검색",
+  "성공": "완료",
+  "끝": "완료",
+  "좋아": "긍정",
+  "찬성": "긍정",
+  "추천": "긍정",
+  "싫어": "부정",
+  "반대": "부정",
+  "거절": "부정",
+  "웃음": "웃기",
+  "웃는행위": "웃기",
+  "웃겨": "웃기",
+  "애정": "사랑",
+  "귀여움": "사랑",
+  "분노": "화남",
+  "공격": "화남",
+  "화내기": "화남",
+  "혼란": "당황",
+  "당황함": "당황",
+  "졸림": "잠",
+  "피곤": "잠",
+  "수면": "잠",
+  "사과": "미안",
+  "부탁": "요청",
+  "주세요": "요청",
+  "로딩": "작업중",
+  "진행중": "작업중",
+  "실패": "오류",
+  "문제": "오류",
+  "뽐내기": "자랑",
+  "잘난척": "자랑",
+  "격려": "응원",
+  "힘내": "응원"
+};
+
+  const normalize = (value) => String(value || '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toLowerCase();
+
+  const ICONS = Object.create(null);
+  const ALIASES = Object.create(null);
+  for (const [name, objectFile] of ICON_ROWS) {
+    const objectPath = FIREBASE_FOLDER + '/' + objectFile;
+    const src = 'https://firebasestorage.googleapis.com/v0/b/' + FIREBASE_BUCKET + '/o/' + encodeURIComponent(objectPath) + '?alt=media';
     ICONS[name] = { name, src };
-    ALIASES[name] = ALIASES[alias] = name;
+    ALIASES[normalize(name)] = name;
+    ALIASES[normalize(objectFile.replace(/\.png$/i, ''))] = name;
+  }
+  for (const [alias, name] of Object.entries(LEGACY_ALIASES)) ALIASES[normalize(alias)] = name;
+
+  const CATEGORIES = Object.create(null);
+  for (const [category, names] of Object.entries(CATEGORY_ROWS)) {
+    CATEGORIES[normalize(category)] = names.filter((name) => ICONS[name]);
+  }
+  const CATEGORY_LOOKUP = Object.create(null);
+  for (const category of Object.keys(CATEGORY_ROWS)) CATEGORY_LOOKUP[normalize(category)] = normalize(category);
+  for (const [alias, category] of Object.entries(CATEGORY_ALIASES)) CATEGORY_LOOKUP[normalize(alias)] = normalize(category);
+  const lastCategoryChoice = new Map();
+
+  function chooseCategory(categoryKey) {
+    const choices = CATEGORIES[categoryKey] || [];
+    if (!choices.length) return '';
+    const previous = lastCategoryChoice.get(categoryKey);
+    const pool = choices.length > 1 ? choices.filter((name) => name !== previous) : choices;
+    const selected = pool[Math.floor(Math.random() * pool.length)];
+    lastCategoryChoice.set(categoryKey, selected);
+    return selected;
   }
 
-  const TOKEN = /\[\[\s*icon\s*:\s*([^\]\s]+)\s*\]\]|\[\s*([0-9]{2}[^\]\s]+)\s*\]/g;
-  const STYLE_ID = 'aicon-renderer-optimized-styles', BADGE_ID = 'aicon-renderer-optimized-badge';
+  function resolve(value) {
+    const key = normalize(value);
+    if (ALIASES[key]) return ALIASES[key];
+    const categoryKey = CATEGORY_LOOKUP[key];
+    return categoryKey ? chooseCategory(categoryKey) : '';
+  }
+
+  const TOKEN = /\[\[\s*icon\s*:\s*([^\]\r\n]+?)\s*\]\]|\[\s*([0-9]{2}[^\]\r\n]+?)\s*\]/g;
+  const STYLE_ID = 'aicon-renderer-semantic-styles-' + AGENT_ID;
+  const BADGE_ID = 'aicon-renderer-semantic-badge-' + AGENT_ID;
   const SKIP = 'script,style,noscript,template,textarea,input,select,option,optgroup,button,output,code,pre,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[data-aicon-rendered="true"],[data-aicon-owned="true"]';
   let pendingStatus = Object.create(null), statusTimer = null, scanScheduled = false;
   const pendingRoots = new Set();
   const now = () => new Date().toISOString();
-  const normalize = (value) => String(value || '').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, '').trim();
-  const resolve = (value) => ALIASES[normalize(value)] || '';
   function hasToken(text) { TOKEN.lastIndex = 0; const result = !!text && TOKEN.test(text); TOKEN.lastIndex = 0; return result; }
   function ignored(element) { return !!(element && (element.isContentEditable || element.matches(SKIP) || element.closest(SKIP))); }
   function skipText(node) { return !node || node.nodeType !== Node.TEXT_NODE || !node.parentElement || node.parentElement.isContentEditable || !!node.parentElement.closest(SKIP); }
@@ -75,23 +347,24 @@
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement('style');
       style.id = STYLE_ID; style.dataset.aiconOwned = 'true';
-      style.textContent = `.aicon-renderer-icon{display:inline-flex;align-items:center;justify-content:center;margin:0 4px;vertical-align:middle;line-height:1}.aicon-renderer-icon>img{display:inline-block;width:${CONFIG.iconSize}px;height:${CONFIG.iconSize}px;max-width:${CONFIG.iconSize}px;max-height:${CONFIG.iconSize}px;margin:0;vertical-align:middle;object-fit:contain;background:transparent;border:0;border-radius:0;box-shadow:none}.aicon-renderer-icon--error{display:inline;margin:0;white-space:pre-wrap}#${BADGE_ID}{position:fixed;right:10px;bottom:10px;z-index:2147483647;padding:3px 6px;border-radius:999px;background:rgba(0,0,0,.35);color:rgba(255,255,255,.75);font:600 10px/1 Arial,sans-serif;box-shadow:none;pointer-events:none;opacity:.45}`;
+      style.textContent = '.aicon-renderer-icon{display:inline-flex;align-items:center;justify-content:center;margin:0 4px;vertical-align:middle;line-height:1}.aicon-renderer-icon>img{display:inline-block;width:' + CONFIG.iconSize + 'px;height:' + CONFIG.iconSize + 'px;max-width:' + CONFIG.iconSize + 'px;max-height:' + CONFIG.iconSize + 'px;margin:0;vertical-align:middle;object-fit:contain;background:transparent;border:0;border-radius:0;box-shadow:none}.aicon-renderer-icon--error{display:inline;margin:0;white-space:pre-wrap}#' + BADGE_ID + '{position:fixed;right:10px;bottom:10px;z-index:2147483647;padding:3px 6px;border-radius:999px;background:rgba(0,0,0,.35);color:rgba(255,255,255,.75);font:600 10px/1 Arial,sans-serif;pointer-events:none;opacity:.45}';
       (document.head || document.documentElement).appendChild(style);
     }
     const badge = document.getElementById(BADGE_ID);
     if (!CONFIG.showBadge) { if (badge) badge.remove(); return; }
     if (!badge && document.body) {
       const next = document.createElement('div');
-      next.id = BADGE_ID; next.className = 'aicon-renderer-badge'; next.dataset.aiconOwned = 'true';
-      next.setAttribute('aria-hidden', 'true'); next.textContent = CONFIG.badgeText; document.body.appendChild(next);
+      next.id = BADGE_ID; next.dataset.aiconOwned = 'true'; next.setAttribute('aria-hidden', 'true'); next.textContent = CONFIG.badgeText;
+      document.body.appendChild(next);
     }
   }
+
   function readStatus() { try { return JSON.parse(localStorage.getItem(CONFIG.statusStorageKey) || '{}'); } catch (_) { return {}; } }
   function flushStatus() {
     if (statusTimer !== null) { clearTimeout(statusTimer); statusTimer = null; }
     const update = pendingStatus; pendingStatus = Object.create(null);
     try { localStorage.setItem(CONFIG.statusStorageKey, JSON.stringify(Object.assign({}, readStatus(), update, { href: location.href, updatedAt: now() }))); }
-    catch (error) { console.warn('[AIcon] Unable to update localStorage status.', error); }
+    catch (error) { console.warn('[AIcon] Unable to update status.', error); }
   }
   function status(update, immediate) {
     Object.assign(pendingStatus, update);
@@ -99,54 +372,31 @@
     if (statusTimer === null) statusTimer = setTimeout(flushStatus, CONFIG.statusFlushDelayMs);
   }
 
-  const dcconBlobUrls = new Map(), dcconRequests = new Map();
-  function getDcconBlobUrl(src) {
-    const cached = dcconBlobUrls.get(src);
-    if (cached) return Promise.resolve(cached);
-    const inFlight = dcconRequests.get(src);
-    if (inFlight) return inFlight;
-
+  const iconBlobUrls = new Map(), iconRequests = new Map();
+  function getIconBlobUrl(src) {
+    if (iconBlobUrls.has(src)) return Promise.resolve(iconBlobUrls.get(src));
+    if (iconRequests.has(src)) return iconRequests.get(src);
     const request = new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
-        method: 'GET',
-        url: src,
-        headers: {
-          Referer: 'https://gall.dcinside.com/',
-          Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
-        },
-        responseType: 'blob',
-        timeout: 15000,
+        method: 'GET', url: src, responseType: 'blob', timeout: 15000,
+        headers: { Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8' },
         onload(response) {
-          if (response.status < 200 || response.status >= 300) {
-            reject(new Error(`DCCon HTTP ${response.status}`));
-            return;
-          }
+          if (response.status < 200 || response.status >= 300) return reject(new Error('AIcon HTTP ' + response.status));
           const blob = response.response;
-          if (!blob || !blob.size) {
-            reject(new Error('DCCon returned an empty image response.'));
-            return;
-          }
-          if (blob.type && !blob.type.startsWith('image/')) {
-            reject(new Error(`DCCon returned a non-image response: ${blob.type}`));
-            return;
-          }
-          const blobUrl = URL.createObjectURL(blob);
-          dcconBlobUrls.set(src, blobUrl);
-          resolve(blobUrl);
+          if (!blob || !blob.size || (blob.type && !blob.type.startsWith('image/'))) return reject(new Error('AIcon invalid image response'));
+          const blobUrl = URL.createObjectURL(blob); iconBlobUrls.set(src, blobUrl); resolve(blobUrl);
         },
-        onerror() { reject(new Error('DCCon image request failed.')); },
-        ontimeout() { reject(new Error('DCCon image request timed out.')); }
+        onerror() { reject(new Error('AIcon image request failed')); },
+        ontimeout() { reject(new Error('AIcon image request timed out')); },
       });
-    }).finally(() => dcconRequests.delete(src));
-
-    dcconRequests.set(src, request);
-    return request;
+    }).finally(() => iconRequests.delete(src));
+    iconRequests.set(src, request); return request;
   }
 
   window.addEventListener('pagehide', (event) => {
     if (event.persisted) return;
-    for (const blobUrl of dcconBlobUrls.values()) URL.revokeObjectURL(blobUrl);
-    dcconBlobUrls.clear();
+    for (const blobUrl of iconBlobUrls.values()) URL.revokeObjectURL(blobUrl);
+    iconBlobUrls.clear();
   });
 
   function makeIcon(name, originalToken) {
@@ -156,16 +406,14 @@
     const restoreToken = () => {
       if (wrapper.dataset.aiconLoadError === 'true') return;
       wrapper.dataset.aiconLoadError = 'true'; wrapper.classList.add('aicon-renderer-icon--error');
-      wrapper.title = `${name}: image failed to load`; wrapper.replaceChildren(document.createTextNode(originalToken));
+      wrapper.title = name + ': image failed to load'; wrapper.replaceChildren(document.createTextNode(originalToken));
       status({ lastImageError: name, lastImageErrorAt: now() });
     };
-    image.addEventListener('error', restoreToken, { once: true });
-    wrapper.appendChild(image);
-    getDcconBlobUrl(ICONS[name].src)
-      .then((blobUrl) => { if (wrapper.dataset.aiconLoadError !== 'true') image.src = blobUrl; })
-      .catch((error) => { console.warn(`[AIcon] ${name} image request failed.`, error); restoreToken(); });
+    image.addEventListener('error', restoreToken, { once: true }); wrapper.appendChild(image);
+    getIconBlobUrl(ICONS[name].src).then((blobUrl) => { if (wrapper.dataset.aiconLoadError !== 'true') image.src = blobUrl; }).catch(restoreToken);
     return wrapper;
   }
+
   function replaceText(node) {
     if (skipText(node)) return false;
     const text = node.nodeValue || ''; if (!hasToken(text)) return false;
@@ -182,6 +430,7 @@
     if (cursor < text.length) fragment.appendChild(document.createTextNode(text.slice(cursor)));
     node.parentNode.replaceChild(fragment, node); return true;
   }
+
   function scan(root) {
     const result = { foundTextNodes: 0, replacedTextNodes: 0 }; if (!canScan(root)) return result;
     const nodes = [];
@@ -194,14 +443,14 @@
     for (const node of nodes) result.replacedTextNodes += +replaceText(node);
     return result;
   }
+
   function scanRoots(roots) {
     const total = { scannedRoots: 0, foundTextNodes: 0, replacedTextNodes: 0 };
     for (const root of roots) { const result = scan(root); total.scannedRoots++; total.foundTextNodes += result.foundTextNodes; total.replacedTextNodes += result.replacedTextNodes; }
     return total;
   }
   function record(total, loaded) {
-    status(Object.assign({ loaded: true, lastScanAt: now(), lastScannedRoots: total.scannedRoots, lastFoundTextNodes: total.foundTextNodes, lastReplacedNodes: total.replacedTextNodes, iconSize: CONFIG.iconSize, badgeVisible: CONFIG.showBadge }, loaded ? { loadedAt: now() } : {}), !!loaded);
-    if (total.foundTextNodes || total.replacedTextNodes) console.debug('[AIcon] scanned roots:', total.scannedRoots, 'found:', total.foundTextNodes, 'replaced:', total.replacedTextNodes);
+    status(Object.assign({ loaded: true, lastScanAt: now(), lastScannedRoots: total.scannedRoots, lastFoundTextNodes: total.foundTextNodes, lastReplacedNodes: total.replacedTextNodes, iconSize: CONFIG.iconSize }, loaded ? { loadedAt: now() } : {}), !!loaded);
   }
   function queue(root) { if (!canScan(root)) return false; pendingRoots.add(root); return true; }
   function takeRoots() {
@@ -214,17 +463,14 @@
     let relevant = false;
     for (const record of records) {
       if (record.type === 'characterData') relevant = queue(record.target) || relevant;
-      else {
-        for (const node of record.addedNodes) relevant = queue(node) || relevant;
-        if (CONFIG.showBadge && !document.getElementById(BADGE_ID)) relevant = true;
-      }
+      else for (const node of record.addedNodes) relevant = queue(node) || relevant;
     }
     if (relevant) scheduleScans();
   }
   function start() {
-    ensureUI(); const initial = scanRoots([document.body]); record(initial, true);
+    ensureUI(); record(scanRoots([document.body]), true);
     new MutationObserver(mutations).observe(document.body, { childList: true, subtree: true, characterData: true });
-    console.info('[AIcon] optimized ChatGPT web renderer loaded:', location.href);
+    console.info('[AIcon] semantic renderer loaded:', AGENT_ID, ICON_ROWS.length, 'icons', Object.keys(CATEGORY_ROWS).length, 'categories');
   }
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start, { once: true });
 })();
