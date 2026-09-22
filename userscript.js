@@ -26,7 +26,7 @@
     statusStorageKey: '__AICON_STATUS_' + AGENT_ID.toUpperCase() + '__',
     statusFlushDelayMs: 750,
   });
-  const FIREBASE_BUCKET = YOUR_BUCKET;
+  const FIREBASE_BUCKET = "YOUR_BUCKET";
   const FIREBASE_FOLDER = 'aicons4/' + AGENT_ID;
   const ICON_ROWS = [
   [
